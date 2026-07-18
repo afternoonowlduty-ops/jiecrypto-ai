@@ -250,6 +250,14 @@ app.use('/media', express.static(MEDIA_DIR, { maxAge: '1d', immutable: true }));
 // ---------------------------------------------------------------------------
 const indexTemplate = await fs.readFile(path.join(__dirname, 'public', 'index.html'), 'utf8');
 
+// Optional web analytics (e.g. self-hosted Umami): set UMAMI_SRC and
+// UMAMI_WEBSITE_ID env vars and the tracking snippet is injected on every
+// page — no code changes needed. Unset = no tracking at all.
+const ANALYTICS_TAG =
+  process.env.UMAMI_SRC && process.env.UMAMI_WEBSITE_ID
+    ? `<script defer src="${process.env.UMAMI_SRC}" data-website-id="${process.env.UMAMI_WEBSITE_ID}"></script>`
+    : '';
+
 function siteOrigin(req) {
   if (process.env.SITE_ORIGIN) return process.env.SITE_ORIGIN.replace(/\/+$/, '');
   const proto = String(req.headers['x-forwarded-proto'] || req.protocol).split(',')[0].trim();
@@ -259,7 +267,8 @@ function siteOrigin(req) {
 function sendIndex(req, res, { noindex = false } = {}) {
   const html = indexTemplate
     .replaceAll('__SITE_ORIGIN__', siteOrigin(req))
-    .replace('<!--#robots-->', noindex ? '<meta name="robots" content="noindex" />' : '');
+    .replace('<!--#robots-->', noindex ? '<meta name="robots" content="noindex" />' : '')
+    .replace('<!--#analytics-->', ANALYTICS_TAG);
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(html);
 }
