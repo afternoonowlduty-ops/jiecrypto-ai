@@ -184,14 +184,58 @@ if (keyPool.length === 0) {
 
 const app = express();
 app.use(express.json({ limit: '25mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+// Raw index.html must never be served directly — it's a template (see below).
+app.get('/index.html', (_req, res) => res.redirect(301, '/'));
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 app.use('/media', express.static(MEDIA_DIR, { maxAge: '1d', immutable: true }));
+
+// ---------------------------------------------------------------------------
+// SEO: index.html is a template — __SITE_ORIGIN__ becomes the real origin
+// (canonical/OG tags stay correct on any domain), and conversation pages get
+// noindex so private chat links never end up in search results.
+// ---------------------------------------------------------------------------
+const indexTemplate = await fs.readFile(path.join(__dirname, 'public', 'index.html'), 'utf8');
+
+function siteOrigin(req) {
+  if (process.env.SITE_ORIGIN) return process.env.SITE_ORIGIN.replace(/\/+$/, '');
+  const proto = String(req.headers['x-forwarded-proto'] || req.protocol).split(',')[0].trim();
+  return `${proto}://${req.headers['x-forwarded-host'] || req.headers.host}`;
+}
+
+function sendIndex(req, res, { noindex = false } = {}) {
+  const html = indexTemplate
+    .replaceAll('__SITE_ORIGIN__', siteOrigin(req))
+    .replace('<!--#robots-->', noindex ? '<meta name="robots" content="noindex" />' : '');
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(html);
+}
+
+app.get('/', (req, res) => sendIndex(req, res));
+
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain').send(
+    'User-agent: *\n' +
+    'Allow: /\n' +
+    'Disallow: /c/\n' +   // private, device-local conversation links
+    'Disallow: /api/\n' +
+    `Sitemap: ${siteOrigin(req)}/sitemap.xml\n`
+  );
+});
+
+app.get('/sitemap.xml', (req, res) => {
+  res.type('application/xml').send(
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+    `  <url><loc>${siteOrigin(req)}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\n` +
+    '</urlset>\n'
+  );
+});
 
 // Conversation links (/c/<id>) are client-side routes — always serve the app;
 // the frontend restores the conversation from its local history. The id
 // pattern excludes dots so asset-like paths (/c/style.css) can't match.
-app.get('/c/:id([A-Za-z0-9_-]+)', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+app.get('/c/:id([A-Za-z0-9_-]+)', (req, res) => {
+  sendIndex(req, res, { noindex: true });
 });
 
 // Normalize upstream / network failures into a consistent JSON error shape.
