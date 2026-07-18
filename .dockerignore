@@ -1,0 +1,9 @@
+node_modules
+generated-media
+.env
+.env.example
+.git
+.claude
+*.log
+.DS_Store
+README.md

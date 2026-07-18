@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:agnes-ai.com)",
+      "WebSearch",
+      "Bash(curl -sL --max-time 60 \"https://agnes-ai.com/en/docs/agnes-20-flash\" -o /tmp/agnes.html)",
+      "Read(//tmp/**)",
+      "WebFetch(domain:platform.agnes-ai.com)",
+      "WebFetch(domain:wiki.agnes-ai.com)",
+      "Bash(npm install *)",
+      "Bash(curl -s -X POST http://localhost:3111/api/image -H \"Content-Type: application/json\" -d '{\"prompt\":\"test\"}')",
+      "Bash(curl -s -X POST http://localhost:3111/api/chat -H \"Content-Type: application/json\" -d '{\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}')",
+      "Bash(ls *.mjs)",
+      "Bash(grep -A3 devDependencies package.json)",
+      "Bash(node --check server.js)",
+      "Bash(node --check public/app.js)"
+    ]
+  }
+}
