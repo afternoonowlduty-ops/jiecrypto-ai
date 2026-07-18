@@ -183,7 +183,61 @@ if (keyPool.length === 0) {
 }
 
 const app = express();
+// Coolify/Traefik terminates TLS in front of us — trust that first hop so
+// req.ip is the visitor's real address (X-Forwarded-For), not the proxy's.
+app.set('trust proxy', 1);
 app.use(express.json({ limit: '25mb' }));
+
+// ---------------------------------------------------------------------------
+// Per-IP rate limiting (in-memory, fixed window). Generation endpoints are
+// expensive — one abuser hammering them would bench every API key for
+// everyone — while polling/recovery endpoints stay generous so video
+// progress and refresh recovery never break for real users.
+// ---------------------------------------------------------------------------
+function rateLimit({ windowMs, max, message }) {
+  const hits = new Map(); // ip -> { count, resetAt }
+  setInterval(() => {
+    const now = Date.now();
+    for (const [ip, entry] of hits) if (entry.resetAt <= now) hits.delete(ip);
+  }, windowMs).unref();
+  return (req, res, next) => {
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    const now = Date.now();
+    let entry = hits.get(ip);
+    if (!entry || entry.resetAt <= now) {
+      entry = { count: 0, resetAt: now + windowMs };
+      hits.set(ip, entry);
+    }
+    if (++entry.count > max) {
+      res.setHeader('Retry-After', Math.ceil((entry.resetAt - now) / 1000));
+      return res.status(429).json({ error: { message } });
+    }
+    next();
+  };
+}
+
+const chatLimit = rateLimit({
+  windowMs: 5 * 60 * 1000, max: 30,
+  message: 'You’re sending messages too quickly — please wait a few minutes.',
+});
+const imageLimit = rateLimit({
+  windowMs: 10 * 60 * 1000, max: 15,
+  message: 'Image limit reached — please wait a few minutes and try again.',
+});
+const videoLimit = rateLimit({
+  windowMs: 30 * 60 * 1000, max: 5,
+  message: 'Video limit reached — please wait a while before creating another one.',
+});
+// Status polls fire every 1.5–5s per in-flight generation; allow plenty.
+const pollLimit = rateLimit({
+  windowMs: 60 * 1000, max: 240,
+  message: 'Too many requests — please slow down.',
+});
+// Media proxy: image loads plus video seeking (Range requests) add up fast.
+const mediaLimit = rateLimit({
+  windowMs: 60 * 1000, max: 300,
+  message: 'Too many requests — please slow down.',
+});
 // Raw index.html must never be served directly — it's a template (see below).
 app.get('/index.html', (_req, res) => res.redirect(301, '/'));
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
@@ -282,7 +336,7 @@ const IDENTITY_PROMPT = {
     'Otherwise, be a helpful, friendly, capable assistant.',
 };
 
-app.post('/api/chat', async (req, res) => {
+app.post('/api/chat', chatLimit, async (req, res) => {
   if (missingKey(res)) return;
 
   const { messages, temperature, max_tokens, chat_id } = req.body || {};
@@ -395,7 +449,7 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // A refreshed page calls this to pick up a reply whose stream it lost.
-app.get('/api/chat/replay/:id', (req, res) => {
+app.get('/api/chat/replay/:id', pollLimit, (req, res) => {
   const entry = chatReplays.get(req.params.id);
   if (!entry || Date.now() - entry.ts > CHAT_REPLAY_TTL) {
     return res.status(404).json({ error: { message: 'This reply is no longer available.' } });
@@ -407,7 +461,7 @@ app.get('/api/chat/replay/:id', (req, res) => {
 // POST /api/image — image generation (agnes-image-2.1-flash)
 // Accepts { prompt, size, ratio, image } and returns { url } or { b64_json }.
 // ---------------------------------------------------------------------------
-app.post('/api/image', async (req, res) => {
+app.post('/api/image', imageLimit, async (req, res) => {
   if (missingKey(res)) return;
 
   const { prompt, size, ratio, image, image_id } = req.body || {};
@@ -489,7 +543,7 @@ app.post('/api/image', async (req, res) => {
 });
 
 // A refreshed page calls this to pick up an image whose response it lost.
-app.get('/api/image/result/:id', (req, res) => {
+app.get('/api/image/result/:id', pollLimit, (req, res) => {
   const entry = imageJobs.get(req.params.id);
   if (!entry || Date.now() - entry.ts > IMAGE_JOB_TTL) {
     return res.status(404).json({ error: { message: 'This image is no longer available.' } });
@@ -501,7 +555,7 @@ app.get('/api/image/result/:id', (req, res) => {
 // POST /api/video — create async video task (agnes-video-v2.0)
 // GET  /api/video/:videoId — poll task status until completed/failed
 // ---------------------------------------------------------------------------
-app.post('/api/video', async (req, res) => {
+app.post('/api/video', videoLimit, async (req, res) => {
   if (missingKey(res)) return;
 
   const { prompt, image, num_frames, frame_rate, width, height, negative_prompt } = req.body || {};
@@ -571,7 +625,7 @@ app.post('/api/video', async (req, res) => {
   }
 });
 
-app.get('/api/video/:videoId', async (req, res) => {
+app.get('/api/video/:videoId', pollLimit, async (req, res) => {
   if (missingKey(res)) return;
   const videoId = req.params.videoId;
   const pollUrl = `${BASE_URL}/agnesapi?video_id=${encodeURIComponent(videoId)}&model_name=agnes-video-v2.0`;
@@ -621,7 +675,7 @@ app.get('/api/video/:videoId', async (req, res) => {
 // provider's domain. Host-whitelisted so it can't be used as an open proxy.
 // dl=1 adds Content-Disposition: attachment → the browser downloads the file.
 // ---------------------------------------------------------------------------
-app.get('/api/media', async (req, res) => {
+app.get('/api/media', mediaLimit, async (req, res) => {
   let parsed;
   try {
     parsed = new URL(String(req.query.url || ''));
