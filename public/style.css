@@ -18,12 +18,12 @@
   --text-dim: #8a8f98;
   --text-faint: #62666d;
 
-  /* Accent — gold, used sparingly */
-  --accent: #f0b90b;
-  --accent-hover: #ffcf3f;
-  --accent-muted: rgba(240, 185, 11, 0.12);
-  --accent-border: rgba(240, 185, 11, 0.35);
-  --accent-grad: linear-gradient(135deg, #f5d9a0 0%, #f0b90b 45%, #c98a2c 100%);
+  /* Accent — green, matching pesles.com brand */
+  --accent: #2be29b;
+  --accent-hover: #51ecb1;
+  --accent-muted: rgba(43, 226, 155, 0.12);
+  --accent-border: rgba(43, 226, 155, 0.35);
+  --accent-grad: linear-gradient(135deg, #6af0bf 0%, #2be29b 45%, #18c383 100%);
   --danger: #ff6b62;
 
   --radius-sm: 8px;
