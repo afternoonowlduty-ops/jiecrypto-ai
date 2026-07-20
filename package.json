@@ -1,7 +1,7 @@
 {
-  "name": "jiecrypto-ai",
+  "name": "pesles-ai",
   "version": "1.0.0",
-  "description": "jiecrypto.ai — free ChatGPT-style text, image, and video generation powered by the Agnes AI API",
+  "description": "Pesles.ai — free ChatGPT-style text, image, and video generation powered by the Agnes AI API",
   "type": "module",
   "main": "server.js",
   "scripts": {

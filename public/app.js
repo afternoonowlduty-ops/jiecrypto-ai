@@ -1,4 +1,4 @@
-/* jiecrypto.ai frontend
+/* Pesles AI frontend
    Data-driven: conversations persist to localStorage and render from state.
    Chat streams over SSE; images open in a lightbox; video polls until done. */
 
@@ -209,7 +209,7 @@ const BRAND_PATTERNS = [
   /sapiens\s?ai\b/gi,
   /apihub\.agnes-ai\.com/gi,
 ];
-const scrubBrands = (text) => BRAND_PATTERNS.reduce((t, re) => t.replace(re, 'jiecrypto AI'), text);
+const scrubBrands = (text) => BRAND_PATTERNS.reduce((t, re) => t.replace(re, 'Pesles AI'), text);
 
 /* ================= Markdown rendering =================
    Assistant replies arrive as Markdown. Everything is HTML-escaped BEFORE any
@@ -406,7 +406,7 @@ function downloadHref(url, filename) {
 }
 
 const mediaFilename = (kind, ts) =>
-  `jiecrypto-${kind}-${new Date(ts || Date.now()).toISOString().slice(0, 10)}-${(ts || Date.now()) % 100000}.${kind === 'video' ? 'mp4' : 'png'}`;
+  `pesles-${kind}-${new Date(ts || Date.now()).toISOString().slice(0, 10)}-${(ts || Date.now()) % 100000}.${kind === 'video' ? 'mp4' : 'png'}`;
 
 /* Finished media loads inside the same shimmering frame the generation used —
    a refreshed conversation used to flash empty black players while the
