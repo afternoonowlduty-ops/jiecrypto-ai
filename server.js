@@ -258,6 +258,13 @@ const ANALYTICS_TAG =
     ? `<script defer src="${process.env.UMAMI_SRC}" data-website-id="${process.env.UMAMI_WEBSITE_ID}"></script>`
     : '';
 
+// Optional sponsored link (pop-under style): set PROMO_URL and the frontend
+// opens it in a new tab on the visitor's first click — at most once per 24h
+// per browser (frontend enforces the cap). Unset = feature off. http(s) only.
+const PROMO_TAG = /^https?:\/\//.test(process.env.PROMO_URL || '')
+  ? `<script>window.__promoUrl=${JSON.stringify(process.env.PROMO_URL)}</script>`
+  : '';
+
 function siteOrigin(req) {
   if (process.env.SITE_ORIGIN) return process.env.SITE_ORIGIN.replace(/\/+$/, '');
   const proto = String(req.headers['x-forwarded-proto'] || req.protocol).split(',')[0].trim();
@@ -268,7 +275,7 @@ function sendIndex(req, res, { noindex = false } = {}) {
   const html = indexTemplate
     .replaceAll('__SITE_ORIGIN__', siteOrigin(req))
     .replace('<!--#robots-->', noindex ? '<meta name="robots" content="noindex" />' : '')
-    .replace('<!--#analytics-->', ANALYTICS_TAG);
+    .replace('<!--#analytics-->', ANALYTICS_TAG + PROMO_TAG);
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(html);
 }

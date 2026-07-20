@@ -1700,6 +1700,26 @@ messageListEl.addEventListener('click', (e) => {
   if (img) openLightbox(img.getAttribute('src'), img.alt, img.dataset.filename);
 });
 
+/* ================= Sponsored link (optional) =================
+   When the server injects window.__promoUrl (PROMO_URL env var), the first
+   click/tap of a visit opens it in a new tab — but at most once per 24h per
+   browser, so regular users aren't nagged on every visit. Browsers only
+   allow window.open inside a real user gesture, hence the click hook. */
+
+if (window.__promoUrl) {
+  const PROMO_KEY = 'jc_promo_ts';
+  const PROMO_COOLDOWN = 24 * 60 * 60 * 1000;
+  const onFirstClick = () => {
+    document.removeEventListener('pointerdown', onFirstClick, true);
+    let last = 0;
+    try { last = Number(localStorage.getItem(PROMO_KEY)) || 0; } catch {}
+    if (Date.now() - last < PROMO_COOLDOWN) return;
+    try { localStorage.setItem(PROMO_KEY, String(Date.now())); } catch {}
+    try { window.open(window.__promoUrl, '_blank', 'noopener'); } catch {}
+  };
+  document.addEventListener('pointerdown', onFirstClick, true);
+}
+
 /* ================= Init ================= */
 
 activeId = routeFromUrl(); // restore the conversation the URL points at
