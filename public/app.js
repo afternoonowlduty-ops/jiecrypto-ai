@@ -173,6 +173,21 @@ function mediaSkeletonHTML(kind, ratio, label, withTrack) {
 const chatUid = () =>
   window.crypto?.randomUUID ? crypto.randomUUID() : uid() + '-' + Math.random().toString(36).slice(2, 10);
 
+// Type text character by character into an element, then call done.
+function typeText(el, text, done) {
+  el.textContent = '';
+  let i = 0;
+  const interval = setInterval(() => {
+    if (i < text.length) {
+      el.textContent += text[i];
+      i++;
+    } else {
+      clearInterval(interval);
+      done?.();
+    }
+  }, 35);
+}
+
 // Copy text to the clipboard with visual feedback on the button.
 async function copyText(text, btn) {
   let ok = false;
@@ -376,7 +391,7 @@ function setBusy(v) {
 async function readJsonError(res) {
   try {
     const data = await res.json();
-    return data?.error?.message || 'Something went wrong. Please try again.';
+    return data?.error?.detail || data?.error?.message || 'Something went wrong. Please try again.';
   } catch {
     return 'Something went wrong. Please try again.';
   }
@@ -444,19 +459,93 @@ function mediaFrameEl(kind, m, src, content) {
     const video = document.createElement('video');
     video.className = 'gen-video';
     video.src = src;
-    video.controls = true;
-    video.muted = true;
     video.loop = true;
     video.playsInline = true;
+
+    // Wrap video and controls
+    const wrapper = document.createElement('div');
+    wrapper.className = 'video-wrapper';
+
+    const controls = document.createElement('div');
+    controls.className = 'video-controls';
+
+    // Play/pause
+    const playBtn = document.createElement('button');
+    playBtn.className = 'vc-btn vc-play';
+    playBtn.innerHTML = svgIcon('i-play');
+    playBtn.setAttribute('aria-label', 'Play');
+
+    // Progress bar
+    const progress = document.createElement('div');
+    progress.className = 'vc-progress';
+    const track = document.createElement('div');
+    track.className = 'vc-progress-track';
+    const fill = document.createElement('div');
+    fill.className = 'vc-progress-fill';
+    const thumb = document.createElement('div');
+    thumb.className = 'vc-progress-thumb';
+    track.append(fill, thumb);
+    progress.appendChild(track);
+
+    // Time display
+    const time = document.createElement('span');
+    time.className = 'vc-time';
+    time.textContent = '0:00 / 0:00';
+
+    // Volume
+    const volBtn = document.createElement('button');
+    volBtn.className = 'vc-btn vc-vol';
+    volBtn.innerHTML = svgIcon('i-volume');
+    volBtn.setAttribute('aria-label', 'Mute');
+
+    controls.append(playBtn, progress, time, volBtn);
+    wrapper.append(video, controls);
+
+    // Helpers
+    function fmt(t) { const m = Math.floor(t / 60); const s = Math.floor(t % 60); return `${m}:${String(s).padStart(2, '0')}`; }
+    function updateProgress() {
+      const pct = video.duration ? (video.currentTime / video.duration * 100) : 0;
+      fill.style.width = `${pct}%`;
+      thumb.style.left = `${pct}%`;
+      time.textContent = `${fmt(video.currentTime)} / ${fmt(video.duration)}`;
+    }
+    function togglePlay() {
+      if (video.paused) { video.play(); playBtn.innerHTML = svgIcon('i-pause'); playBtn.setAttribute('aria-label', 'Pause'); wrapper.classList.remove('paused'); }
+      else { video.pause(); playBtn.innerHTML = svgIcon('i-play'); playBtn.setAttribute('aria-label', 'Play'); wrapper.classList.add('paused'); }
+    }
+
+    playBtn.addEventListener('click', togglePlay);
+    video.addEventListener('click', togglePlay);
+    video.addEventListener('timeupdate', updateProgress);
+    video.addEventListener('loadedmetadata', updateProgress);
+    video.addEventListener('play', () => { playBtn.innerHTML = svgIcon('i-pause'); playBtn.setAttribute('aria-label', 'Pause'); wrapper.classList.remove('paused'); });
+    video.addEventListener('pause', () => { playBtn.innerHTML = svgIcon('i-play'); playBtn.setAttribute('aria-label', 'Play'); wrapper.classList.add('paused'); });
+    video.addEventListener('ended', () => { playBtn.innerHTML = svgIcon('i-play'); playBtn.setAttribute('aria-label', 'Replay'); wrapper.classList.add('paused'); });
+
+    // Seek on progress bar click
+    progress.addEventListener('click', e => {
+      const rect = track.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      video.currentTime = pct * video.duration;
+    });
+
+    // Volume toggle (mute/unmute)
+    volBtn.addEventListener('click', () => {
+      video.muted = !video.muted;
+      volBtn.innerHTML = svgIcon(video.muted ? 'i-volume-x' : 'i-volume');
+      volBtn.setAttribute('aria-label', video.muted ? 'Unmute' : 'Mute');
+    });
+
+    // Prevent click-through from controls to video
+    controls.addEventListener('click', e => e.stopPropagation());
+
     if (m.poster) {
-      // A real frame from this video, captured on a previous load — the
-      // player looks finished immediately, no skeleton needed.
       video.poster = m.poster;
       video.preload = 'metadata';
       ready();
       video.addEventListener('loadedmetadata', () => snap(video.videoWidth, video.videoHeight), { once: true });
     } else {
-      video.preload = 'auto'; // need the first frame for the reveal + poster
+      video.preload = 'auto';
       video.addEventListener('loadeddata', () => {
         snap(video.videoWidth, video.videoHeight);
         ready();
@@ -464,7 +553,7 @@ function mediaFrameEl(kind, m, src, content) {
       }, { once: true });
     }
     video.onerror = expired;
-    frame.appendChild(video);
+    frame.appendChild(wrapper);
   } else {
     const img = document.createElement('img');
     img.className = 'gen-image';
@@ -604,12 +693,10 @@ function renderMessageEl(m) {
       // Persisted in-progress generation — survives a refresh. The sender
       // (or recoverImage) finds this element by data-image-id to finish it.
       msg.dataset.imageId = m.imageId || '';
-      content.innerHTML = mediaSkeletonHTML(
-        'image',
-        m.ratio,
-        m.i2i ? 'Transforming your image' : 'Creating your image',
-        false
-      );
+      const label = m.i2i ? 'Transforming your image' : 'Creating your image';
+      content.innerHTML =
+        `<p class="media-status-text">Your image is being generated. Please wait a moment.</p>` +
+        mediaSkeletonHTML('image', m.ratio, label, false);
     } else if (m.status === 'failed') {
       const err = document.createElement('div');
       err.className = 'msg-error';
@@ -630,7 +717,9 @@ function renderMessageEl(m) {
       // Persisted in-progress task — a background poller (pollVideoTask)
       // finds this element by data-video-id and updates it.
       msg.dataset.videoId = m.videoId || '';
-      content.innerHTML = mediaSkeletonHTML('video', m.ratio, 'Generating your video', true);
+      content.innerHTML =
+        `<p class="media-status-text">Your video is being generated. Please wait a moment.</p>` +
+        mediaSkeletonHTML('video', m.ratio, 'Generating your video', true);
     } else if (m.status === 'failed') {
       content.innerHTML = `<span class="media-expired">${svgIcon('i-video')} This video couldn’t be generated</span>`;
     } else if (m.url) {
@@ -1511,7 +1600,9 @@ async function sendImage(conv, userMsg) {
   };
   conv.messages.push(pendingMsg);
   touch(conv);
-  appendMessage(pendingMsg);
+  const imgContent = appendMessage(pendingMsg);
+  const imgStatus = imgContent?.querySelector('.media-status-text');
+  if (imgStatus) typeText(imgStatus, 'Your image is being generated. Please wait a moment.');
 
   try {
     const res = await fetch('/api/image', {
@@ -1650,7 +1741,11 @@ async function sendVideo(conv, userMsg) {
     .map((a) => a.dataUrl);
   const startLabel = images.length ? 'Animating your image' : 'Starting your video';
   const [width, height] = document.getElementById('vidSize').value.split('x').map(Number);
-  const node = appendTransient(mediaSkeletonHTML('video', `${width}x${height}`, startLabel, true));
+  const node = appendTransient(
+    `<p class="media-status-text">Your video is being generated. Please wait a moment.</p>`
+  );
+  const nodeStatus = node.querySelector('.media-status-text');
+  if (nodeStatus) typeText(nodeStatus, 'Your video is being generated. Please wait a moment.');
 
   try {
     const res = await fetch('/api/video', {

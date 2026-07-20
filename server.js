@@ -240,7 +240,7 @@ const mediaLimit = rateLimit({
 });
 // Raw index.html must never be served directly — it's a template (see below).
 app.get('/index.html', (_req, res) => res.redirect(301, '/'));
-app.use(express.static(path.join(__dirname, 'public'), { index: false }));
+app.use(express.static(path.join(__dirname, 'public'), { index: false, maxAge: 0 }));
 app.use('/media', express.static(MEDIA_DIR, { maxAge: '1d', immutable: true }));
 
 // ---------------------------------------------------------------------------
@@ -322,7 +322,8 @@ app.get(['/c/:id([A-Za-z0-9_-]+)', '/img/:id([A-Za-z0-9_-]+)', '/vid/:id([A-Za-z
 function sendError(res, status, message, detail) {
   if (detail) console.error(`[upstream ${status}] ${String(detail).slice(0, 800)}`);
   if (res.headersSent) return;
-  res.status(status).json({ error: { message } });
+  const userDetail = detail && status < 500 ? String(detail).slice(0, 2000) : undefined;
+  res.status(status).json({ error: { message, detail: userDetail } });
 }
 
 const missingKey = (res) => {

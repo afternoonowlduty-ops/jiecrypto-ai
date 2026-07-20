@@ -696,10 +696,106 @@ body {
 .msg-content video.gen-video {
   max-width: 100%;
   max-height: min(60vh, 480px);
-  border-radius: var(--radius);
-  border: 1px solid var(--border-default);
   display: block;
   background: #000;
+}
+
+/* Custom video player controls */
+.video-wrapper {
+  position: relative;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-default);
+  overflow: hidden;
+  background: #000;
+  line-height: 0;
+}
+.media-frame:not(.ready) .video-wrapper > video.gen-video {
+  opacity: 0;
+}
+.video-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.7));
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-out);
+  pointer-events: none;
+  line-height: normal;
+}
+.video-wrapper:hover .video-controls,
+.video-wrapper.paused .video-controls {
+  opacity: 1;
+  pointer-events: auto;
+}
+.vc-btn {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background var(--dur-fast) var(--ease-out);
+  padding: 0;
+}
+.vc-btn:hover { background: rgba(255,255,255,0.12); }
+.vc-btn .ico { width: 15px; height: 15px; }
+.vc-progress {
+  flex: 1;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  position: relative;
+  min-width: 0;
+}
+.vc-progress-track {
+  width: 100%;
+  height: 3px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+}
+.vc-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  width: 0;
+  transition: width 0.1s linear;
+}
+.vc-progress-thumb {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  background: var(--accent);
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform var(--dur-fast) var(--ease-out);
+  box-shadow: 0 0 4px rgba(0,0,0,0.4);
+}
+.vc-progress:hover .vc-progress-thumb {
+  transform: translate(-50%, -50%) scale(1);
+}
+.vc-time {
+  flex: none;
+  font-size: 11px;
+  color: rgba(255,255,255,0.85);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.3px;
+  min-width: 70px;
+  text-align: center;
+  font-weight: 500;
 }
 
 .media-expired {
@@ -788,6 +884,21 @@ body {
 .media-skeleton-status .typing i { background: #e8e9eb; }
 .media-skeleton-status .progress-track { max-width: none; margin-top: 8px; background: rgba(255, 255, 255, 0.18); }
 
+/* Status text above pending media skeleton */
+.media-status-text {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: var(--text-body);
+  line-height: 1.5;
+}
+.media-status-text + .media-skeleton {
+  animation: skeleton-fade-in 0.4s ease-out 1.2s both;
+}
+@keyframes skeleton-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* Finished media fades in where the skeleton was */
 img.gen-image, video.gen-video { animation: media-reveal 0.45s var(--ease-out); }
 @keyframes media-reveal {
@@ -814,6 +925,14 @@ img.gen-image, video.gen-video { animation: media-reveal 0.45s var(--ease-out); 
 }
 .media-frame.ready img.gen-image,
 .media-frame.ready video.gen-video { opacity: 1; }
+.media-frame.ready .video-wrapper > video.gen-video {
+  position: relative;
+  width: 100%;
+  height: auto;
+  display: block;
+  opacity: 1;
+  max-height: min(60vh, 480px);
+}
 .media-frame.ready { background: var(--bg-surface-2); }
 .media-frame.ready::after { display: none; } /* stop the sheen */
 .media-frame.ready > .ico { display: none; }
