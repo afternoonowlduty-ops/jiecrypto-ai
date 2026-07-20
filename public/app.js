@@ -1700,13 +1700,14 @@ messageListEl.addEventListener('click', (e) => {
   if (img) openLightbox(img.getAttribute('src'), img.alt, img.dataset.filename);
 });
 
-/* ================= Sponsored link (optional) =================
-   When the server injects window.__promoUrl (PROMO_URL env var), the first
-   click/tap of a visit opens it in a new tab — but at most once per 24h per
-   browser, so regular users aren't nagged on every visit. Browsers only
-   allow window.open inside a real user gesture, hence the click hook. */
+/* ================= Sponsored links (optional) =================
+   When the server injects window.__promoUrls (PROMO_URL env var — one or
+   more comma-separated links), the first click/tap of a visit opens ONE of
+   them, picked at random, in a new tab — at most once per 24h per browser,
+   so regular users aren't nagged on every visit. Browsers only allow
+   window.open inside a real user gesture, hence the click hook. */
 
-if (window.__promoUrl) {
+if (Array.isArray(window.__promoUrls) && window.__promoUrls.length) {
   const PROMO_KEY = 'jc_promo_ts';
   const PROMO_COOLDOWN = 24 * 60 * 60 * 1000;
   const onFirstClick = () => {
@@ -1715,7 +1716,8 @@ if (window.__promoUrl) {
     try { last = Number(localStorage.getItem(PROMO_KEY)) || 0; } catch {}
     if (Date.now() - last < PROMO_COOLDOWN) return;
     try { localStorage.setItem(PROMO_KEY, String(Date.now())); } catch {}
-    try { window.open(window.__promoUrl, '_blank', 'noopener'); } catch {}
+    const url = window.__promoUrls[Math.floor(Math.random() * window.__promoUrls.length)];
+    try { window.open(url, '_blank', 'noopener'); } catch {}
   };
   document.addEventListener('pointerdown', onFirstClick, true);
 }

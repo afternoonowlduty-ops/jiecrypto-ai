@@ -258,11 +258,16 @@ const ANALYTICS_TAG =
     ? `<script defer src="${process.env.UMAMI_SRC}" data-website-id="${process.env.UMAMI_WEBSITE_ID}"></script>`
     : '';
 
-// Optional sponsored link (pop-under style): set PROMO_URL and the frontend
-// opens it in a new tab on the visitor's first click — at most once per 24h
-// per browser (frontend enforces the cap). Unset = feature off. http(s) only.
-const PROMO_TAG = /^https?:\/\//.test(process.env.PROMO_URL || '')
-  ? `<script>window.__promoUrl=${JSON.stringify(process.env.PROMO_URL)}</script>`
+// Optional sponsored links (pop-under style): PROMO_URL takes one or more
+// comma-separated http(s) URLs. On the visitor's first click the frontend
+// opens ONE of them (picked at random) in a new tab — at most once per 24h
+// per browser. Unset = feature off.
+const PROMO_URLS = String(process.env.PROMO_URL || '')
+  .split(',')
+  .map((u) => u.trim())
+  .filter((u) => /^https?:\/\//.test(u));
+const PROMO_TAG = PROMO_URLS.length
+  ? `<script>window.__promoUrls=${JSON.stringify(PROMO_URLS)}</script>`
   : '';
 
 function siteOrigin(req) {
