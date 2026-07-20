@@ -291,7 +291,9 @@ app.get('/robots.txt', (req, res) => {
   res.type('text/plain').send(
     'User-agent: *\n' +
     'Allow: /\n' +
-    'Disallow: /c/\n' +   // private, device-local conversation links
+    'Disallow: /c/\n' +
+    'Disallow: /img/\n' +
+    'Disallow: /vid/\n' +   // private, device-local conversation links
     'Disallow: /api/\n' +
     `Sitemap: ${siteOrigin(req)}/sitemap.xml\n`
   );
@@ -306,10 +308,11 @@ app.get('/sitemap.xml', (req, res) => {
   );
 });
 
-// Conversation links (/c/<id>) are client-side routes — always serve the app;
-// the frontend restores the conversation from its local history. The id
-// pattern excludes dots so asset-like paths (/c/style.css) can't match.
-app.get('/c/:id([A-Za-z0-9_-]+)', (req, res) => {
+// All conversation-style links (/c/<id>, /img/<id>, /vid/<id>) are client-side
+// routes — always serve the app; the frontend restores the conversation from
+// its local history. The id pattern excludes dots so asset-like paths can't
+// match.
+app.get(['/c/:id([A-Za-z0-9_-]+)', '/img/:id([A-Za-z0-9_-]+)', '/vid/:id([A-Za-z0-9_-]+)'], (req, res) => {
   sendIndex(req, res, { noindex: true });
 });
 

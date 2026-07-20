@@ -72,12 +72,13 @@ function getActive() {
   return store.conversations.find((c) => c.id === activeId) || null;
 }
 
-function ensureConversation(firstPrompt) {
+function ensureConversation(firstPrompt, convMode) {
   let conv = getActive();
   if (!conv) {
     conv = {
       id: uid(),
       title: makeTitle(firstPrompt),
+      mode: convMode,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       messages: [],
@@ -876,7 +877,12 @@ themeToggle.addEventListener('click', () => {
    Conversations live in this browser's storage, so a link opens the
    conversation on this device. */
 
-const convUrl = (id) => (id ? '/c/' + id : '/');
+const convUrl = (id) => {
+  if (!id) return '/';
+  const conv = store.conversations.find((c) => c.id === id);
+  const prefix = conv?.mode === 'image' ? '/img/' : conv?.mode === 'video' ? '/vid/' : '/c/';
+  return prefix + id;
+};
 
 function navigateTo(id, { push = true } = {}) {
   if (location.pathname !== convUrl(id)) {
@@ -892,8 +898,8 @@ function navigateTo(id, { push = true } = {}) {
 }
 
 function routeFromUrl() {
-  const m = location.pathname.match(/^\/c\/([\w-]+)$/);
-  return m && store.conversations.some((c) => c.id === m[1]) ? m[1] : null;
+  const m = location.pathname.match(/^\/(c|img|vid)\/([\w-]+)$/);
+  return m && store.conversations.some((c) => c.id === m[2]) ? m[2] : null;
 }
 
 window.addEventListener('popstate', () => {
@@ -1245,7 +1251,7 @@ function send() {
   attachments = [];
   renderAttachStrip();
 
-  const conv = ensureConversation(prompt || (att[0] && att[0].name) || 'New chat');
+  const conv = ensureConversation(prompt || (att[0] && att[0].name) || 'New chat', mode);
   const userMsg = { role: 'user', type: 'text', content: prompt, mode, ts: Date.now() };
   if (att.length) {
     // Persist only names + tiny thumbs; the full-size data stays in memory.
@@ -1873,7 +1879,7 @@ document.addEventListener('pointerdown', () => { maybeOpenPromo('jc_promo_ts_gen
 /* ================= Init ================= */
 
 activeId = routeFromUrl(); // restore the conversation the URL points at
-if (!activeId && /^\/c\//.test(location.pathname)) {
+if (!activeId && /^\/(c|img|vid)\//.test(location.pathname)) {
   history.replaceState(null, '', '/'); // dead link (deleted chat) — clean up
 } else if (!activeId && store.conversations.some((c) => c.id === store.activeId)) {
   // URL doesn't name a conversation — reopen the last one that was open, so
