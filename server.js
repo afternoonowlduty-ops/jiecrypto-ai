@@ -533,7 +533,9 @@ app.post('/api/image', imageLimit, async (req, res) => {
     }
     const text = await upstream.text();
     if (!upstream.ok) {
-      return fail(upstream.status, upstreamMessage(upstream.status), text.slice(0, 2000));
+      let detail;
+      try { const j = JSON.parse(text); detail = j?.error?.message || j?.message || text; } catch { detail = text; }
+      return fail(upstream.status, detail.slice(0, 500), text.slice(0, 2000));
     }
     const data = JSON.parse(text);
     const item = data?.data?.[0];

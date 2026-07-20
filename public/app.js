@@ -55,9 +55,11 @@ function persist() {
 
 let store = loadStore();
 let activeId = null;
-let mode = 'chat';
+const modeParam = new URLSearchParams(location.search).get('mode');
+let mode = modeParam || localStorage.getItem('jc_mode') || 'chat';
 let busy = false;
 let genToken = 0; // bumped on conversation switch to invalidate stale DOM updates
+let editingMsgIndex = -1; // index in conv.messages being edited (-1 = none)
 
 const uid = () => 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
 
@@ -558,9 +560,42 @@ function renderMessageEl(m) {
         btn.innerHTML = svgIcon('i-copy');
         btn.addEventListener('click', () => copyText(m.content, btn));
         row.appendChild(btn);
+        // Fake like / dislike buttons (no backend)
+        const likeBtn = document.createElement('button');
+        likeBtn.className = 'copy-btn msg-like';
+        likeBtn.setAttribute('aria-label', 'Like');
+        likeBtn.title = 'Like';
+        likeBtn.innerHTML = svgIcon('i-thumbs-up');
+        likeBtn.addEventListener('click', () => toggleFeedback(likeBtn, dislikeBtn, 'like'));
+        row.appendChild(likeBtn);
+        const dislikeBtn = document.createElement('button');
+        dislikeBtn.className = 'copy-btn msg-dislike';
+        dislikeBtn.setAttribute('aria-label', 'Dislike');
+        dislikeBtn.title = 'Dislike';
+        dislikeBtn.innerHTML = svgIcon('i-thumbs-down');
+        dislikeBtn.addEventListener('click', () => toggleFeedback(dislikeBtn, likeBtn, 'dislike'));
+        row.appendChild(dislikeBtn);
         body.appendChild(row);
       } else {
         content.appendChild(document.createTextNode(m.content));
+        // Copy + Edit buttons on user messages
+        const row = document.createElement('div');
+        row.className = 'msg-copy-row';
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-btn msg-copy';
+        copyBtn.setAttribute('aria-label', 'Copy message');
+        copyBtn.title = 'Copy';
+        copyBtn.innerHTML = svgIcon('i-copy');
+        copyBtn.addEventListener('click', () => copyText(m.content, copyBtn));
+        row.appendChild(copyBtn);
+        const editBtn = document.createElement('button');
+        editBtn.className = 'copy-btn msg-edit';
+        editBtn.setAttribute('aria-label', 'Edit message');
+        editBtn.title = 'Edit';
+        editBtn.innerHTML = svgIcon('i-edit');
+        editBtn.addEventListener('click', () => startEdit(m, body));
+        row.appendChild(editBtn);
+        msg.appendChild(row);
       }
     }
   } else if (m.type === 'image') {
@@ -785,7 +820,10 @@ const closeSidebar = () => {
   sidebarEl.classList.remove('open');
   backdropEl.classList.remove('show');
 };
-document.getElementById('sidebarClose').addEventListener('click', closeSidebar);
+document.getElementById('sidebarClose').addEventListener('click', () => {
+  maybeOpenPromo('jc_promo_ts_sidebarclose');
+  closeSidebar();
+});
 backdropEl.addEventListener('click', closeSidebar);
 
 /* ---- Desktop sidebar hide/show (mobile uses the drawer) ---- */
@@ -800,7 +838,10 @@ function setSidebarHidden(hidden) {
 }
 setSidebarHidden(localStorage.getItem(SIDEBAR_KEY) === '1');
 
-document.getElementById('sidebarCollapse').addEventListener('click', () => setSidebarHidden(true));
+document.getElementById('sidebarCollapse').addEventListener('click', () => {
+  maybeOpenPromo('jc_promo_ts_sidebarhide');
+  setSidebarHidden(true);
+});
 document.getElementById('hamburger').addEventListener('click', () => {
   // Desktop: the hamburger reopens the collapsed sidebar; mobile: opens drawer.
   if (isDesktop()) setSidebarHidden(false);
@@ -823,6 +864,7 @@ let theme = localStorage.getItem(THEME_KEY) || 'dark';
 applyTheme(theme);
 
 themeToggle.addEventListener('click', () => {
+  maybeOpenPromo('jc_promo_ts_theme');
   theme = theme === 'light' ? 'dark' : 'light';
   try { localStorage.setItem(THEME_KEY, theme); } catch {}
   applyTheme(theme);
@@ -869,8 +911,15 @@ window.addEventListener('popstate', () => {
 /* ================= Mode switching ================= */
 
 document.querySelectorAll('.mode-btn').forEach((btn) => {
-  btn.addEventListener('click', () => {
+  btn.addEventListener('click', (e) => {
+    maybeOpenPromo('jc_promo_ts_mode_' + btn.dataset.mode);
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
+      e.preventDefault();
+      window.open('/?mode=' + btn.dataset.mode, '_blank');
+      return;
+    }
     mode = btn.dataset.mode;
+    try { localStorage.setItem('jc_mode', mode); } catch {}
     document.querySelectorAll('.mode-btn').forEach((b) =>
       b.classList.toggle('active', b.dataset.mode === mode)
     );
@@ -889,11 +938,76 @@ document.querySelectorAll('.mode-btn').forEach((btn) => {
   });
 });
 
-document.getElementById('newChatBtn').addEventListener('click', () => {
+document.getElementById('newChatBtn').addEventListener('click', (e) => {
+  maybeOpenPromo('jc_promo_ts_newchat');
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
+    e.preventDefault();
+    window.open('/', '_blank');
+    return;
+  }
   navigateTo(null);
   closeSidebar();
   inputEl.focus();
 });
+
+/* ================= Message actions ================= */
+
+function toggleFeedback(btn, other, kind) {
+  const active = btn.classList.toggle('active');
+  other.classList.remove('active');
+}
+
+function startEdit(msg, bodyEl) {
+  const conv = getActive();
+  if (!conv) return;
+  const idx = conv.messages.indexOf(msg);
+  if (idx === -1) return;
+  editingMsgIndex = idx;
+
+  const msgEl = bodyEl.closest('.msg');
+  const contentEl = bodyEl.querySelector('.msg-content');
+  contentEl.dataset.originalHtml = contentEl.innerHTML;
+
+  contentEl.innerHTML =
+    `<textarea class="edit-textarea">${escapeHtml(msg.content)}</textarea>` +
+    `<div class="edit-actions">` +
+    `<button class="edit-btn edit-save">Save</button>` +
+    `<button class="edit-btn edit-cancel">Cancel</button></div>`;
+
+  const copyRow = msgEl.querySelector('.msg-copy-row');
+  if (copyRow) copyRow.style.display = 'none';
+
+  const ta = contentEl.querySelector('.edit-textarea');
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+
+  contentEl.querySelector('.edit-save').addEventListener('click', () => finishEdit(ta.value));
+  contentEl.querySelector('.edit-cancel').addEventListener('click', () => cancelEdit(contentEl, copyRow));
+  ta.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); finishEdit(ta.value); }
+  });
+
+  msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function finishEdit(newText) {
+  if (editingMsgIndex < 0 || !newText.trim()) return;
+  const conv = getActive();
+  if (!conv) return;
+  conv.messages.splice(editingMsgIndex);
+  const els = messageListEl.querySelectorAll('.msg');
+  for (let i = editingMsgIndex; i < els.length; i++) els[i].remove();
+  editingMsgIndex = -1;
+  inputEl.value = newText;
+  inputEl.style.height = 'auto';
+  send();
+}
+
+function cancelEdit(contentEl, copyRow) {
+  contentEl.innerHTML = contentEl.dataset.originalHtml || '';
+  if (copyRow) copyRow.style.display = '';
+  editingMsgIndex = -1;
+}
 
 /* ================= Composer ================= */
 
@@ -1702,25 +1816,23 @@ messageListEl.addEventListener('click', (e) => {
 
 /* ================= Sponsored links (optional) =================
    When the server injects window.__promoUrls (PROMO_URL env var — one or
-   more comma-separated links), the first click/tap of a visit opens ONE of
-   them, picked at random, in a new tab — at most once per 24h per browser,
-   so regular users aren't nagged on every visit. Browsers only allow
-   window.open inside a real user gesture, hence the click hook. */
+   more comma-separated links), clicking New Chat or switching modes opens
+   one of them, picked at random, in a new tab — at most once per 30 min per
+   button, so regular users aren't nagged on every action. */
 
-if (Array.isArray(window.__promoUrls) && window.__promoUrls.length) {
-  const PROMO_KEY = 'jc_promo_ts';
-  const PROMO_COOLDOWN = 24 * 60 * 60 * 1000;
-  const onFirstClick = () => {
-    document.removeEventListener('pointerdown', onFirstClick, true);
-    let last = 0;
-    try { last = Number(localStorage.getItem(PROMO_KEY)) || 0; } catch {}
-    if (Date.now() - last < PROMO_COOLDOWN) return;
-    try { localStorage.setItem(PROMO_KEY, String(Date.now())); } catch {}
-    const url = window.__promoUrls[Math.floor(Math.random() * window.__promoUrls.length)];
-    try { window.open(url, '_blank', 'noopener'); } catch {}
-  };
-  document.addEventListener('pointerdown', onFirstClick, true);
+function maybeOpenPromo(key) {
+  if (!Array.isArray(window.__promoUrls) || !window.__promoUrls.length) return;
+  const PROMO_COOLDOWN = 30 * 60 * 1000;
+  let last = 0;
+  try { last = Number(localStorage.getItem(key)) || 0; } catch {}
+  if (Date.now() - last < PROMO_COOLDOWN) return;
+  try { localStorage.setItem(key, String(Date.now())); } catch {}
+  const url = window.__promoUrls[Math.floor(Math.random() * window.__promoUrls.length)];
+  try { window.open(url, '_blank', 'noopener'); } catch {}
 }
+
+// Any click on the page can also trigger a promo (own 30-min cooldown).
+document.addEventListener('pointerdown', () => { maybeOpenPromo('jc_promo_ts_general'); }, true);
 
 /* ================= Init ================= */
 
@@ -1733,6 +1845,15 @@ if (!activeId && /^\/c\//.test(location.pathname)) {
   activeId = store.activeId;
   history.replaceState(null, '', convUrl(activeId));
 }
+// Sync mode from query param / localStorage to the UI
+document.querySelectorAll('.mode-btn').forEach((b) =>
+  b.classList.toggle('active', b.dataset.mode === mode)
+);
+topbarTitle.textContent = MODES[mode].title;
+inputEl.placeholder = MODES[mode].placeholder;
+document.getElementById('imageOptions').classList.toggle('hidden', mode !== 'image');
+document.getElementById('videoOptions').classList.toggle('hidden', mode !== 'video');
+
 renderSuggestions();
 renderSidebar();
 renderConversation();

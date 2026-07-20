@@ -372,6 +372,7 @@ body {
   z-index: 50;
   opacity: 0;
   transition: opacity var(--dur-slow) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
 }
 .backdrop.show { display: block; opacity: 1; }
 
@@ -505,7 +506,7 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-.msg.user { justify-content: flex-end; }
+.msg.user { flex-direction: column; align-items: flex-end; }
 .msg.user .msg-body {
   max-width: 78%;
   background: var(--bg-surface-3);
@@ -569,11 +570,43 @@ body {
 .code-wrap:hover .code-copy,
 .code-wrap .code-copy:focus-visible { opacity: 1; }
 
-.msg-copy-row { margin-top: 4px; opacity: 0; transition: opacity var(--dur-base) var(--ease-out); }
-.msg.assistant:hover .msg-copy-row,
-.msg-copy-row .copy-btn:focus-visible { opacity: 1; }
+.msg-copy-row { margin-top: 4px; display: flex; gap: 4px; }
 .msg-copy-row .copy-btn { background: transparent; border-color: transparent; }
 .msg-copy-row .copy-btn:hover { background: var(--bg-hover); }
+.msg-like.active .ico { color: #6fd388; }
+.msg-dislike.active .ico { color: var(--danger); }
+.msg-edit .ico { width: 13px; height: 13px; }
+
+.edit-textarea {
+  width: 100%;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.55;
+  padding: 10px 12px;
+  resize: vertical;
+  min-height: 60px;
+  outline: none;
+}
+.edit-textarea:focus { border-color: var(--accent); }
+.edit-actions { display: flex; gap: 6px; margin-top: 8px; }
+.edit-btn {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-default);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.edit-save { background: var(--accent); color: #141002; border-color: var(--accent); }
+.edit-save:hover { background: var(--accent-hover); }
+.edit-cancel { background: transparent; color: var(--text-dim); }
+.edit-cancel:hover { background: var(--bg-hover); color: var(--text); }
 
 @media (hover: none) {
   .code-wrap .code-copy, .msg-copy-row { opacity: 1; }
@@ -1126,6 +1159,7 @@ button:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visi
     left: 0;
     top: 0;
     bottom: 0;
+    max-width: calc(100vw - 48px);
     transform: translateX(-105%);
     transition: transform var(--dur-slow) var(--ease-out);
   }
@@ -1134,6 +1168,11 @@ button:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visi
   .hamburger { display: flex; }
   .topbar-brand { display: flex; }
   .topbar-title { margin-left: auto; }
+  /* Bottom nav also shows on tablets for quick mode switching */
+  .bottom-nav { display: flex; }
+  .bottom-nav .mode-btn { padding: 8px 4px; min-height: 40px; }
+  .bottom-nav .mode-btn:active { transform: scale(0.94); }
+  .mode-nav { display: none; }
 }
 
 /* Phones: bottom tab bar takes over mode switching */
@@ -1150,6 +1189,24 @@ button:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visi
   .suggestions { grid-template-columns: 1fr; }
   .options-bar { padding-top: 6px; padding-bottom: 6px; }
   .lightbox img { max-width: 100vw; border-radius: 0; }
+  /* Bigger touch targets */
+  .bottom-nav .mode-btn { padding: 10px 4px; min-height: 44px; }
+  .bottom-nav .mode-btn:active { transform: scale(0.94); }
+  #sendBtn { width: 44px; height: 44px; min-width: 44px; border-radius: 12px; }
+  /* Sidebar: larger tap targets for fingers */
+  .sidebar { padding: 14px 10px; }
+  .new-chat-btn { padding: 13px 14px; }
+  .recent-title { padding: 11px 4px 11px 12px; font-size: 14px; }
+  .recent-delete { width: 36px; height: 36px; min-width: 36px; }
+}
+
+/* Narrow phones: icon-only bottom nav */
+@media (max-width: 400px) {
+  .bottom-nav .mode-btn span { display: none; }
+  .bottom-nav .mode-btn { gap: 0; padding: 10px 2px; }
+  .bottom-nav .mode-btn .ico { width: 22px; height: 22px; }
+  .msg.user .msg-body { max-width: 92%; }
+  .sidebar { width: 100%; min-width: 0; }
 }
 
 /* Short landscape phones */
