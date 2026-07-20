@@ -1,4 +1,4 @@
-# ⚡ Pesles.ai
+# ⚡ Pesles AI
 
 Free ChatGPT-style AI web app — **text chat, image generation, and video generation** — powered by the free [Agnes AI](https://agnes-ai.com) API.
 
@@ -61,6 +61,6 @@ All three models are currently **$0** (promotional pricing). Free tier: 20 reque
 - Generated media URLs have no documented expiry — download anything you want to keep.
 - The $0 pricing is promotional and may change; check the [Agnes docs](https://agnes-ai.com/en/docs) for current pricing.
 
-## Deploying to Pesles.ai
+## Deploying to Pesles AI
 
-This is a plain Node app — deploy anywhere Node 18+ runs (Render, Railway, Fly.io, a VPS…). Set `AGNES_API_KEY` as an environment variable on the host, point the `Pesles.ai` DNS A/CNAME record at it, and enable HTTPS.
+This is a plain Node app — deploy anywhere Node 18+ runs (Render, Railway, Fly.io, a VPS…). Set `AGNES_API_KEY` as an environment variable on the host, point the `Pesles AI` DNS A/CNAME record at it, and enable HTTPS.

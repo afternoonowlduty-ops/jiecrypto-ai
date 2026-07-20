@@ -1,4 +1,4 @@
-# Pesles.ai — production container
+# Pesles AI — production container
 
 # ---- Build stage: install deps and minify frontend assets ----
 FROM node:22-alpine AS build

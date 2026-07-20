@@ -348,7 +348,7 @@ const missingKey = (res) => {
 const IDENTITY_PROMPT = {
   role: 'system',
   content:
-    'You are Pesles AI, the assistant built into the website Pesles.ai. ' +
+    'You are Pesles AI, the assistant built into the website Pesles AI. ' +
     'If asked what model, AI, or technology you are, answer only that you are ' +
     '"Pesles AI" — nothing more specific. Never state, hint at, or confirm ' +
     'the name of any underlying model, provider, company, or API, and never ' +
@@ -761,5 +761,5 @@ function upstreamMessage(status) {
 }
 
 app.listen(PORT, () => {
-  console.log(`\n  Pesles.ai running →  http://localhost:${PORT}\n`);
+  console.log(`\n  Pesles AI running →  http://localhost:${PORT}\n`);
 });

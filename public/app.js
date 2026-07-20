@@ -857,7 +857,7 @@ const THEME_KEY = 'jc_theme';
 
 function applyTheme(t) {
   document.documentElement.dataset.theme = t;
-  themeColorMeta.setAttribute('content', t === 'light' ? '#f7f7f8' : '#0a0b0d');
+  themeColorMeta.setAttribute('content', t === 'light' ? '#f7f7f8' : '#07080c');
   themeToggle.innerHTML = svgIcon(t === 'light' ? 'i-moon' : 'i-sun');
   themeToggle.title = t === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
 }
