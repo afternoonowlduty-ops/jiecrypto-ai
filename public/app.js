@@ -968,11 +968,30 @@ function startEdit(msg, bodyEl) {
   const contentEl = bodyEl.querySelector('.msg-content');
   contentEl.dataset.originalHtml = contentEl.innerHTML;
 
-  contentEl.innerHTML =
+  let html = '';
+
+  // Show attachments if present
+  if (Array.isArray(msg.attachments) && msg.attachments.length) {
+    html += '<div class="edit-attachments">';
+    msg.attachments.forEach((a) => {
+      if (a.kind === 'image' && a.thumb) {
+        html +=
+          `<div class="edit-attach-chip"><img src="${escapeHtml(a.thumb)}" alt="${escapeHtml(a.name || '')}"><span>${escapeHtml(a.name || 'image')}</span></div>`;
+      } else {
+        html +=
+          `<div class="edit-attach-chip">${svgIcon('i-file')}<span>${escapeHtml(a.name || 'file')}</span></div>`;
+      }
+    });
+    html += '</div>';
+  }
+
+  html +=
     `<textarea class="edit-textarea">${escapeHtml(msg.content)}</textarea>` +
     `<div class="edit-actions">` +
-    `<button class="edit-btn edit-save">Save</button>` +
+    `<button class="edit-btn edit-save">Save & Resend</button>` +
     `<button class="edit-btn edit-cancel">Cancel</button></div>`;
+
+  contentEl.innerHTML = html;
 
   const copyRow = msgEl.querySelector('.msg-copy-row');
   if (copyRow) copyRow.style.display = 'none';
@@ -981,26 +1000,43 @@ function startEdit(msg, bodyEl) {
   ta.focus();
   ta.setSelectionRange(ta.value.length, ta.value.length);
 
-  contentEl.querySelector('.edit-save').addEventListener('click', () => finishEdit(ta.value));
+  contentEl.querySelector('.edit-save').addEventListener('click', () => finishEdit(ta.value, msg));
   contentEl.querySelector('.edit-cancel').addEventListener('click', () => cancelEdit(contentEl, copyRow));
   ta.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); finishEdit(ta.value); }
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); finishEdit(ta.value, msg); }
   });
 
   msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-function finishEdit(newText) {
+function finishEdit(newText, origMsg) {
   if (editingMsgIndex < 0 || !newText.trim()) return;
   const conv = getActive();
   if (!conv) return;
+
+  const origMode = origMsg.mode || 'chat';
+  const origAttData = runtimeAtt.get(origMsg);
+
+  // Truncate conversation from the edited message onwards
   conv.messages.splice(editingMsgIndex);
   const els = messageListEl.querySelectorAll('.msg');
   for (let i = editingMsgIndex; i < els.length; i++) els[i].remove();
   editingMsgIndex = -1;
-  inputEl.value = newText;
-  inputEl.style.height = 'auto';
-  send();
+
+  // Build the new user message reusing original attachments
+  const userMsg = { role: 'user', type: 'text', content: newText, mode: origMode, ts: Date.now() };
+  if (origAttData && origAttData.length) {
+    userMsg.attachments = origAttData.map((a) => ({ kind: a.kind, name: a.name, thumb: a.thumb || null }));
+    runtimeAtt.set(userMsg, origAttData);
+  }
+  conv.messages.push(userMsg);
+  appendMessage(userMsg);
+  touch(conv);
+
+  // Call the appropriate send function based on the original mode
+  if (origMode === 'chat') sendChat(conv, userMsg);
+  else if (origMode === 'image') sendImage(conv, userMsg);
+  else sendVideo(conv, userMsg);
 }
 
 function cancelEdit(contentEl, copyRow) {
